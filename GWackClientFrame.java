@@ -1,12 +1,11 @@
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 public class GWackClientFrame extends JFrame {
-    // text areas for easy access for the clientNetowrking
+    // text areas
     private JTextArea nameText;
     private JTextArea ipText;
     private JTextArea portText;
@@ -18,7 +17,7 @@ public class GWackClientFrame extends JFrame {
     private JButton connect;
     private boolean connected = false;
     
-    // for handling networking aspects and updating the GUI appropriately
+    // for handling networking aspects and updating the GUI
     private GWackClientNetworking clientNetworking;
 
     public GWackClientFrame() {
@@ -52,7 +51,7 @@ public class GWackClientFrame extends JFrame {
         setUpBot();
     }
 
-    // Set up the header with input fields
+    // Set up the header
     private void setUpHeader() {
         JPanel header = new JPanel();
         GridBagConstraints c = new GridBagConstraints();
@@ -76,7 +75,7 @@ public class GWackClientFrame extends JFrame {
         portText.setPreferredSize(new Dimension(75, 20));
         portText.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
 
-        // connect button!
+        // connect button
         connect = new JButton("Connect");
         ButtonActionListener buttonListener = new ButtonActionListener();
         connect.addActionListener(buttonListener);
@@ -188,6 +187,7 @@ public class GWackClientFrame extends JFrame {
         composeText = new JTextArea();
         composeText.setLineWrap(true);
         composeText.setWrapStyleWord(true);
+        composeText.addKeyListener(new SendActionListener());
         JScrollPane composeScrollPane = new JScrollPane(composeText);
         composeScrollPane.setPreferredSize(new Dimension(520, 84));
         composeScrollPane.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
@@ -215,11 +215,13 @@ public class GWackClientFrame extends JFrame {
         bottom.add(send);
     }
 
+    // update text areas appropriately
     public void updateAll(String message, String clients) {
         newMessage(message);
         updateClients(clients);
     }
 
+    // clear text
     public void reset() {
         newMessage("");
         updateClients("");
@@ -227,7 +229,6 @@ public class GWackClientFrame extends JFrame {
 
     // update the message text area appropriately
     private void newMessage(String message) {
-        //System.out.println(message);
         messagesText.setText(message);
     }
 
@@ -236,10 +237,11 @@ public class GWackClientFrame extends JFrame {
         membersText.setText(clients);
     }
 
-    // update the compose text appropriately and send to clientnetworking for processing
+    // update the compose text appropriately and send to clientnetworking
     private void sendMessage() {
         String message = composeText.getText();
         clientNetworking.sendMessage(message);
+        composeText.setText("");
     }
 
     // return value of connect button
@@ -247,13 +249,30 @@ public class GWackClientFrame extends JFrame {
         return connect;
     }
 
+    public boolean getConnectionStatus() {
+        return connected;
+    }
+
+    // error message when user enters wrong information for connecting
+    public void errorMessage() {
+        JOptionPane.showMessageDialog(this, "Cannot Connect\nPlease Try Again",
+            "Connection Error", JOptionPane.ERROR_MESSAGE);
+    }
+
+    // warns user when they try to do an action when not connected
+    public void warningMessage() {
+        JOptionPane.showMessageDialog(this, "Not Connected\nPlease Connect to Send Messages",
+            "Connection Warning", JOptionPane.ERROR_MESSAGE);
+    }
+
     // for changing text of the connect button
-    private void setButtonState(boolean isConnected) {
+    public void setButtonState(boolean isConnected) {
         connected = isConnected;
         if (connected) {
             connect.setText("Disconnect");
             this.setTitle("GWack -- GW Slack Simulator (connected)");
-        } else {
+        } 
+        else {
             connect.setText("Connect");
             this.setTitle("GWack -- GW Slack Simulator (disconnected)");
         }
@@ -263,7 +282,7 @@ public class GWackClientFrame extends JFrame {
     private class ButtonActionListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            // if button is disconnected ->
+            // if button is disconnected -> connect
             if (!connected) {
                 ConnectActionListener connectListener = new ConnectActionListener();
                 connectListener.performConnectAction();
@@ -276,81 +295,115 @@ public class GWackClientFrame extends JFrame {
         }
     }
 
+    // logic relatede to when the user connects
     private class ConnectActionListener {
+        private String n;
         private String ip;
+        private int p;
 
         public void performConnectAction() {
-            // update button text
-            setButtonState(true);
-
-            String n = nameText.getText();
+            n = nameText.getText();
             ip = ipText.getText();
-            int p = Integer.parseInt(portText.getText());
+            try {
+                p = Integer.parseInt(portText.getText());
 
-            // Check if the IP address is "localhost"
-            if (ip.equalsIgnoreCase("localhost")) {
-                try {
-                    ip = InetAddress.getLocalHost().getHostAddress();
-                } catch (UnknownHostException e) {
-                    e.printStackTrace();
+                // Check if the IP address is "localhost"
+                if (ip.equalsIgnoreCase("localhost")) {
+                    try {
+                        ip = InetAddress.getLocalHost().getHostAddress();
+                    } 
+                    catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    }
                 }
+
+                SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+                    @Override
+                    protected Void doInBackground() {
+                        // Connection logic
+                        clientNetworking.connect(n, ip, p);
+                        // update button text
+                        return null;
+
+                    }
+
+                    @Override
+                    protected void done() {
+                    }
+                };
+                worker.execute();
             }
-
-            SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-                @Override
-                protected Void doInBackground() {
-                    // Connection logic
-                    clientNetworking.connect(n, ip, p);
-                    return null;
-                }
-
-                @Override
-                protected void done() {
-                }
-            };
-            worker.execute();
+            catch (Exception e) {
+                errorMessage();
+                
+            }
         }
     }
 
     // Handling the disconnect button action
     private class DisconnectActionListener {
         public void performDisconnectAction() {
-            setButtonState(false);
-
             SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() {
                     // Disconnect logic
                     clientNetworking.disconnect();
+                    setButtonState(false);
                     return null;
                 }
 
                 @Override
                 protected void done() {
-                    //System.out.println("test");
                 }
             };
             worker.execute();
         }
     }
 
-    // Handling the connect and disconnect button action
-    private class SendActionListener implements ActionListener {
+    // Handling the send button action
+    private class SendActionListener implements ActionListener, KeyListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-                @Override
-                protected Void doInBackground() {
-                    // Send logic
-                    sendMessage();
-                    return null;
-                }
-
-                @Override
-                protected void done() {
-                }
-            };
-            worker.execute();
+            // button click action
+            sendAction();
+        }
+    
+        @Override
+        public void keyTyped(KeyEvent e) {
+        }
+    
+        @Override
+        public void keyPressed(KeyEvent e) {
+            // Enter key press action
+            if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                e.consume();
+                sendAction();
+            }
+        }
+    
+        @Override
+        public void keyReleased(KeyEvent e) {
+        }
+    
+        private void sendAction() {
+            if (getConnectionStatus()) {
+                SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+                    @Override
+                    protected Void doInBackground() {
+                        // Send logic
+                        sendMessage();
+                        return null;
+                    }
+        
+                    @Override
+                    protected void done() {
+                    }
+                };
+                worker.execute();
+            }
+            else {
+                warningMessage();
+            }
         }
     }
 }

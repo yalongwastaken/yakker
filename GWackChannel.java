@@ -7,13 +7,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.Iterator;
 
 public class GWackChannel {
-    private static String SECRET = "3c3c4ac618656ae32b7f3431e75f7b26b1a14a87";
-    private static List<GWackConnectedClient> clients = new ArrayList<>();
+    private final String SECRET = "3c3c4ac618656ae32b7f3431e75f7b26b1a14a87";
+    private List<GWackConnectedClient> clients = new ArrayList<>();
     private BlockingQueue<String> messageQueue = new LinkedBlockingQueue<>();
-
     private ServerSocket serverSocket;
-    public static void main(String[] args) {
+    private Thread sendMessageThread;
 
+    public static void main(String[] args) {
         int port = Integer.parseInt(args[0]);
         GWackChannel channel = new GWackChannel(port);
         channel.serve();
@@ -22,70 +22,69 @@ public class GWackChannel {
     public GWackChannel(int port) {
         try {
             serverSocket = new ServerSocket(port);
-        }
+        } 
         catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
         }
     }
 
     public void serve() {
+        // Start the threads for sendMessageFromQueueToAll
+        sendMessageThread = new Thread(this::runSendMessageFromQueueToAll);
+        sendMessageThread.start();
+
         while (true) {
+            //int activeThreadCount = Thread.activeCount();
+            //System.out.println("Number of active threads: " + activeThreadCount);
             try {
-                // Accept incoming client connections
+                // accept incoming requesets
                 Socket clientSocket = serverSocket.accept();
-        
-                // Create a reader to receive data from the client
+                //System.out.println("New connection: "+clientSocket.getRemoteSocketAddress());
+
+                // read handshake from user
                 BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 String secret = reader.readLine();
                 String secretText = reader.readLine();
-        
-                // Check if the client's request is valid
+
+                // create connectedClient and send clientlist to the new connection
                 if (secret.equals("SECRET") && secretText.equals(SECRET) && reader.readLine().equals("NAME")) {
                     String username = reader.readLine();
-        
-                    // Start a new thread to handle the client's interactions
                     GWackConnectedClient connectedClient = new GWackConnectedClient(clientSocket, username);
-                    Thread clientHandler = new Thread(connectedClient);
                     addClient(connectedClient);
-                    clientHandler.start();
-
-                    // Get the updated client list
-                    String clientList = getClientList();
-        
-                    // Create a writer to send the client list back to the client
-                    PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
-                    writer.println(clientList);
+                    connectedClient.start();
+                    manageClientList();
                 } 
+                // wrong handshake -> close connection
                 else {
-                    // If the request is not valid, close the client socket
-                    System.out.println("something went wrong");
                     clientSocket.close();
                 }
             }
             catch (IOException e) {
             }
-
-            // sending and interacting with all the clients
-            try {
-                manageClientList();
-                sendMessageFromQueueToAll();
-            }
-            catch (Exception e) {
-            }
         }
     }
 
+    // seperate thread for sending messages to all
+    private void runSendMessageFromQueueToAll() {
+        while (true) {
+            sendMessageFromQueueToAll();
+        }
+    }
+
+    // add client to all clients
     private void addClient(GWackConnectedClient client) {
         clients.add(client);
     }
 
-     // Enqueue a message to be sent to all clients
-     private void enqeueMessage(String message) {
-        try {
-            // Enqueue the message to the BlockingQueue
-            messageQueue.put(message);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+    // add message to queue to be sent to all connected clients
+    private void enqeueMessage(String message) {
+        if (message != null) {
+            try {
+                messageQueue.put(message);
+            } 
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -93,106 +92,123 @@ public class GWackChannel {
         messageQueue.clear();
     }
 
-     // A separate thread to handle sending messages from the queue to all clients
-     private void sendMessageFromQueueToAll() {
-        while (true) {
+    // gets messages from the queue and sends them to all connected clients
+    private void sendMessageFromQueueToAll() {
+        while (!messageQueue.isEmpty()) {
             try {
-                // Dequeue a message from the BlockingQueue
                 String message = messageQueue.take();
 
-                // Send the message to all connected clients
                 if (message != null) {
                     for (GWackConnectedClient client : clients) {
                         client.sendMessage(message);
                     }
                 }
-            } catch (InterruptedException e) {
+            } 
+            catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-            } catch (Exception e) {
+            } 
+            catch (Exception e) {
                 e.printStackTrace();
             }
         }
     }
 
-    public synchronized void manageClientList() {
+    // sesnding client list to all clients
+    private void sendClientListToAll() {
+        String clientList = getClientList();
+        for (GWackConnectedClient client : clients) {
+            client.sendMessage(clientList);
+        }
+    }
+
+    // removes clients if they disconnect
+    public void manageClientList() {
         Iterator<GWackConnectedClient> iterator = clients.iterator();
         while (iterator.hasNext()) {
             GWackConnectedClient client = iterator.next();
-            if (!client.getConnection()) {
+            if (!client.isConnected()) {
                 iterator.remove();
             }
         }
-    }
 
-    // return a list of the currently connected clients
+        sendClientListToAll();
+    }
+    
+    // returns the client list in the proper format
     public synchronized String getClientList() {
         String clientList = "START_CLIENT_LIST\n";
-        for (GWackConnectedClient client: clients) {
+        for (GWackConnectedClient client : clients) {
             clientList += client.getClientName() + "\n";
         }
         clientList += "END_CLIENT_LIST";
-
         return clientList;
     }
 
+    // class that manages the GWackConnectedClient and its functionality
     private class GWackConnectedClient extends Thread {
+        private PrintWriter writer = null;
         private Socket sock = null;
+        private BufferedReader in = null;
         private String name = "";
-        private boolean connected = true;
+        private boolean isConnected = true;
 
+        // constructor
         public GWackConnectedClient(Socket s, String n) {
             sock = s;
             name = n;
         }
 
+        // sends message over the network connection
         public void sendMessage(String message) {
             try {
-                PrintWriter writer = new PrintWriter(sock.getOutputStream(), true);
+                writer = new PrintWriter(sock.getOutputStream(), true);
                 writer.println(message);
             } 
             catch (IOException e) {
-                e.printStackTrace();
+                // e.printStackTrace();
             }
         }
 
-        public boolean isValid() {
-            return !sock.isClosed();
+        // check if the client is connected
+        public boolean isConnected() {
+            return isConnected;
         }
 
+        // get name of the client
         public String getClientName() {
             return name;
         }
 
-        private void clientDisconnect() {
-            connected = false;
-        }
-
-        public boolean getConnection() {
-            return connected;
-        }
-
         public void run() {
             try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-    
-                // Add code to continuously read messages from the client and process them
+                in = new BufferedReader(new InputStreamReader(sock.getInputStream()));
                 while (true) {
-                    String message = reader.readLine();
-                    enqeueMessage(message);
+                    // read a message from the input stream
+                    String message = in.readLine();
+                    if (message == null) {
+                        break; 
+                    }
 
-                    // user disconnects
-                    if (!isValid()) {
-                        break;
+                    // format message with client name
+                    if (message != null) {
+                        message = "[" + name + "] " + message;
+                        enqeueMessage(message);
                     }
                 }
-    
-                // If the client disconnects, remove them from the clients map
-                clientDisconnect();
+
+                // client disconnects
+                isConnected = false;
+                writer.close();
+                in.close();
                 sock.close();
+
+                // send client list when anyone disconnects
+                manageClientList();
             } 
             catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
+            //System.out.println("Connection lost: " + sock.getRemoteSocketAddress());
         }
     }
 }
