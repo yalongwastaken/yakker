@@ -1,0 +1,6 @@
+# Compiled
+*.class
+
+# Build output
+work/**
+!work/.gitkeep

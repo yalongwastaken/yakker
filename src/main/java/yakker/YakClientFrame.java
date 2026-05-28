@@ -1,84 +1,95 @@
+/**
+ * @file YakClientFrame.java
+ * @brief Swing frame for Yakker client.
+ *        Builds the GUI layout, wires action listeners for connect/disconnect
+ *        and send, and delegates networking to YakClientNetworking.
+ */
+package yakker;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-public class GWackClientFrame extends JFrame {
-    // text areas
+public class YakClientFrame extends JFrame {
+
+    // constants
+    private static final String TITLE_CONNECTED    = "Yakker (connected)";
+    private static final String TITLE_DISCONNECTED = "Yakker (disconnected)";
+    private static final int    FRAME_WIDTH        = 750;
+    private static final int    FRAME_HEIGHT       = 400;
+
+    // input fields
     private JTextArea nameText;
     private JTextArea ipText;
     private JTextArea portText;
+
+    // display areas
     private JTextArea membersText;
     private JTextArea messagesText;
     private JTextArea composeText;
 
-    // connect button
+    // controls
     private JButton connect;
     private boolean connected = false;
-    
-    // for handling networking aspects and updating the GUI
-    private GWackClientNetworking clientNetworking;
 
-    public GWackClientFrame() {
-        // Set up the main frame
-        this.setTitle("GWack -- GW Slack Simulator (disconnected)");
+    // networking
+    private YakClientNetworking clientNetworking;
+
+    // constructor
+    public YakClientFrame() {
+        this.setTitle(TITLE_DISCONNECTED);
         this.setLayout(new GridBagLayout());
         this.setResizable(true);
-        this.pack();
-        this.setSize(750, 400);
-
-        // Center the frame on the screen
-        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        GraphicsDevice defaultScreen = ge.getDefaultScreenDevice();
-        int screenWidth = defaultScreen.getDisplayMode().getWidth();
-        int screenHeight = defaultScreen.getDisplayMode().getHeight();
-        int frameWidth = this.getWidth();
-        int frameHeight = this.getHeight();
-        int x = (screenWidth - frameWidth) / 2;
-        int y = (screenHeight - frameHeight) / 2;
-        this.setLocation(x, y);
-
+        this.setSize(FRAME_WIDTH, FRAME_HEIGHT);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        clientNetworking = new GWackClientNetworking(this);
+        // center on screen
+        GraphicsEnvironment ge            = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        GraphicsDevice      defaultScreen = ge.getDefaultScreenDevice();
+        int screenWidth  = defaultScreen.getDisplayMode().getWidth();
+        int screenHeight = defaultScreen.getDisplayMode().getHeight();
+        this.setLocation((screenWidth - FRAME_WIDTH) / 2, (screenHeight - FRAME_HEIGHT) / 2);
+
+        clientNetworking = new YakClientNetworking(this);
     }
-    
+
+    // builds all panels and adds them to the frame
     public void setUp() {
         setUpHeader();
         setUpActiveUsers();
         setUpTextInterface();
-        setUpBot();
+        setUpBottom();
     }
 
-    // Set up the header
+    // header row: name, IP, port inputs and connect button
     private void setUpHeader() {
         JPanel header = new JPanel();
         GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 1;
-        c.gridy = 0;
-        c.anchor = GridBagConstraints.WEST;
+        c.gridx   = 1;
+        c.gridy   = 0;
+        c.anchor  = GridBagConstraints.WEST;
         this.add(header, c);
 
-         // Labels and input fields
-        JLabel name = new JLabel("Name:", JLabel.CENTER);
-        JLabel ip = new JLabel("IP Address:", JLabel.CENTER);
-        JLabel port = new JLabel("Port:", JLabel.CENTER);;
+        JLabel name = new JLabel("Name:",       JLabel.CENTER);
+        JLabel ip   = new JLabel("IP Address:", JLabel.CENTER);
+        JLabel port = new JLabel("Port:",       JLabel.CENTER);
 
         nameText = new JTextArea();
         nameText.setPreferredSize(new Dimension(100, 20));
         nameText.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
+
         ipText = new JTextArea();
         ipText.setPreferredSize(new Dimension(100, 20));
         ipText.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
+
         portText = new JTextArea();
         portText.setPreferredSize(new Dimension(75, 20));
         portText.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
 
-        // connect button
         connect = new JButton("Connect");
-        ButtonActionListener buttonListener = new ButtonActionListener();
-        connect.addActionListener(buttonListener);
+        connect.addActionListener(new ButtonActionListener());
 
         header.add(name);
         header.add(nameText);
@@ -90,7 +101,7 @@ public class GWackClientFrame extends JFrame {
         header.add(connect);
     }
 
-    // Set up the panel displaying active users
+    // left panel: scrollable list of active members
     private void setUpActiveUsers() {
         JPanel connectedMembers = new JPanel();
         connectedMembers.setLayout(new BoxLayout(connectedMembers, BoxLayout.Y_AXIS));
@@ -104,304 +115,281 @@ public class GWackClientFrame extends JFrame {
         c.gridx = 0;
         c.gridy = 0;
         connectedMembers.add(membersPanel, c);
-    
-        JLabel messages = new JLabel("Active Members:");
+
+        JLabel label = new JLabel("Active Members:");
         c = new GridBagConstraints();
-        c.gridx = 0;
-        c.gridy = 0;
+        c.gridx  = 0;
+        c.gridy  = 0;
         c.anchor = GridBagConstraints.WEST;
-        membersPanel.add(messages, c);
-    
+        membersPanel.add(label, c);
+
         membersText = new JTextArea();
         membersText.setLineWrap(true);
         membersText.setWrapStyleWord(true);
         membersText.setEditable(false);
+
         JScrollPane membersScrollPane = new JScrollPane(membersText);
         membersScrollPane.setPreferredSize(new Dimension(150, 255));
         membersScrollPane.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
         membersScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 
         c = new GridBagConstraints();
-        c.gridx = 0;
-        c.gridy = 1;
+        c.gridx  = 0;
+        c.gridy  = 1;
         c.anchor = GridBagConstraints.EAST;
         membersPanel.add(membersScrollPane, c);
     }
 
-    // Set up the panel for text messages and composition
+    // center panel: messages display and compose area
     private void setUpTextInterface() {
         JPanel text = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 1;
         c.gridy = 1;
         this.add(text, c);
-    
-        // Create a panel for Messages
+
+        // messages panel
         JPanel messagesPanel = new JPanel(new GridBagLayout());
         c = new GridBagConstraints();
         c.gridx = 0;
         c.gridy = 0;
         text.add(messagesPanel, c);
-    
-        JLabel messages = new JLabel("Messages:");
+
+        JLabel messagesLabel = new JLabel("Messages:");
         c = new GridBagConstraints();
-        c.gridx = 0;
-        c.gridy = 0;
+        c.gridx  = 0;
+        c.gridy  = 0;
         c.anchor = GridBagConstraints.WEST;
-        messagesPanel.add(messages, c);
-    
+        messagesPanel.add(messagesLabel, c);
+
         messagesText = new JTextArea();
         messagesText.setLineWrap(true);
         messagesText.setWrapStyleWord(true);
         messagesText.setEditable(false);
+
         JScrollPane messagesScrollPane = new JScrollPane(messagesText);
         messagesScrollPane.setPreferredSize(new Dimension(520, 145));
         messagesScrollPane.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
         messagesScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+
         c = new GridBagConstraints();
-        c.gridx = 0;
-        c.gridy = 1;
+        c.gridx  = 0;
+        c.gridy  = 1;
         c.anchor = GridBagConstraints.EAST;
         messagesPanel.add(messagesScrollPane, c);
 
-        // add a buffer
+        // vertical buffer
         c = new GridBagConstraints();
         c.gridx = 0;
         c.gridy = 1;
         text.add(Box.createVerticalStrut(10), c);
-    
-        // Create a panel for Compose
+
+        // compose panel
         JPanel composePanel = new JPanel(new GridBagLayout());
         c = new GridBagConstraints();
         c.gridx = 0;
         c.gridy = 2;
         text.add(composePanel, c);
-    
-        JLabel compose = new JLabel("Compose:");
+
+        JLabel composeLabel = new JLabel("Compose:");
         c = new GridBagConstraints();
-        c.gridx = 0;
-        c.gridy = 0;
+        c.gridx  = 0;
+        c.gridy  = 0;
         c.anchor = GridBagConstraints.WEST;
-        composePanel.add(compose, c);
-    
+        composePanel.add(composeLabel, c);
+
         composeText = new JTextArea();
         composeText.setLineWrap(true);
         composeText.setWrapStyleWord(true);
         composeText.addKeyListener(new SendActionListener());
+
         JScrollPane composeScrollPane = new JScrollPane(composeText);
         composeScrollPane.setPreferredSize(new Dimension(520, 84));
         composeScrollPane.setBorder(BorderFactory.createLineBorder(Color.GRAY, 1));
         composeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+
         c = new GridBagConstraints();
-        c.gridx = 0;
-        c.gridy = 1;
+        c.gridx  = 0;
+        c.gridy  = 1;
         c.anchor = GridBagConstraints.EAST;
         composePanel.add(composeScrollPane, c);
     }
-    
-    // Set up the panel for the send button
-    private void setUpBot() {
+
+    // bottom row: send button
+    private void setUpBottom() {
         JPanel bottom = new JPanel();
         GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 1;
-        c.gridy = 2;
+        c.gridx  = 1;
+        c.gridy  = 2;
         c.anchor = GridBagConstraints.EAST;
         this.add(bottom, c);
 
         JButton send = new JButton("Send");
-        SendActionListener buttonListener = new SendActionListener();
-        send.addActionListener(buttonListener);
-
+        send.addActionListener(new SendActionListener());
         bottom.add(send);
     }
 
-    // update text areas appropriately
+    // updates messages and client list displays
     public void updateAll(String message, String clients) {
         newMessage(message);
         updateClients(clients);
     }
 
-    // clear text
+    // clears messages and client list displays
     public void reset() {
         newMessage("");
         updateClients("");
     }
 
-    // update the message text area appropriately
+    // replaces the messages display content
     private void newMessage(String message) {
         messagesText.setText(message);
     }
 
-    // update the client text area appropriately
+    // replaces the members display content
     private void updateClients(String clients) {
         membersText.setText(clients);
     }
 
-    // update the compose text appropriately and send to clientnetworking
+    // reads compose field, sends message, and clears the field
     private void sendMessage() {
         String message = composeText.getText();
         clientNetworking.sendMessage(message);
         composeText.setText("");
     }
 
-    // return value of connect button
+    // returns the connect/disconnect button
     public JButton getConnect() {
         return connect;
     }
 
+    // returns whether the client is currently connected
     public boolean getConnectionStatus() {
         return connected;
     }
 
-    // error message when user enters wrong information for connecting
+    // shows a connection error dialog
     public void errorMessage() {
-        JOptionPane.showMessageDialog(this, "Cannot Connect\nPlease Try Again",
+        JOptionPane.showMessageDialog(this,
+            "Cannot Connect\nPlease Try Again",
             "Connection Error", JOptionPane.ERROR_MESSAGE);
     }
 
-    // warns user when they try to do an action when not connected
+    // shows a warning dialog when attempting to send while disconnected
     public void warningMessage() {
-        JOptionPane.showMessageDialog(this, "Not Connected\nPlease Connect to Send Messages",
+        JOptionPane.showMessageDialog(this,
+            "Not Connected\nPlease Connect to Send Messages",
             "Connection Warning", JOptionPane.ERROR_MESSAGE);
     }
 
-    // for changing text of the connect button
+    // updates button label and window title to reflect connection state
     public void setButtonState(boolean isConnected) {
         connected = isConnected;
         if (connected) {
             connect.setText("Disconnect");
-            this.setTitle("GWack -- GW Slack Simulator (connected)");
-        } 
-        else {
+            this.setTitle(TITLE_CONNECTED);
+        } else {
             connect.setText("Connect");
-            this.setTitle("GWack -- GW Slack Simulator (disconnected)");
+            this.setTitle(TITLE_DISCONNECTED);
         }
     }
 
-    // Handling the connect and disconnect button action
+    // toggles between connect and disconnect actions
     private class ButtonActionListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            // if button is disconnected -> connect
             if (!connected) {
-                ConnectActionListener connectListener = new ConnectActionListener();
-                connectListener.performConnectAction();
-            } 
-            // if button is connected -> disconnect
-            else {
-                DisconnectActionListener disconnectListener = new DisconnectActionListener();
-                disconnectListener.performDisconnectAction();
+                new ConnectActionListener().performConnectAction();
+            } else {
+                new DisconnectActionListener().performDisconnectAction();
             }
         }
     }
 
-    // logic relatede to when the user connects
+    // reads input fields and initiates connection on a background thread
     private class ConnectActionListener {
-        private String n;
-        private String ip;
-        private int p;
-
         public void performConnectAction() {
-            n = nameText.getText();
-            ip = ipText.getText();
-            try {
-                p = Integer.parseInt(portText.getText());
+            String n  = nameText.getText();
+            String ip = ipText.getText();
 
-                // Check if the IP address is "localhost"
+            try {
+                int p = Integer.parseInt(portText.getText());
+
+                // resolve localhost to actual address
                 if (ip.equalsIgnoreCase("localhost")) {
                     try {
                         ip = InetAddress.getLocalHost().getHostAddress();
-                    } 
-                    catch (UnknownHostException e) {
+                    } catch (UnknownHostException e) {
                         e.printStackTrace();
                     }
                 }
 
-                SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+                final String resolvedIp = ip;
+                new SwingWorker<Void, Void>() {
                     @Override
                     protected Void doInBackground() {
-                        // Connection logic
-                        clientNetworking.connect(n, ip, p);
-                        // update button text
+                        clientNetworking.connect(n, resolvedIp, p);
                         return null;
-
                     }
 
                     @Override
-                    protected void done() {
-                    }
-                };
-                worker.execute();
-            }
-            catch (Exception e) {
+                    protected void done() {}
+                }.execute();
+            } catch (Exception e) {
                 errorMessage();
-                
             }
         }
     }
 
-    // Handling the disconnect button action
+    // initiates disconnection on a background thread
     private class DisconnectActionListener {
         public void performDisconnectAction() {
-            SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() {
-                    // Disconnect logic
                     clientNetworking.disconnect();
                     setButtonState(false);
                     return null;
                 }
 
                 @Override
-                protected void done() {
-                }
-            };
-            worker.execute();
+                protected void done() {}
+            }.execute();
         }
     }
 
-    // Handling the send button action
+    // handles send button click and Enter key press
     private class SendActionListener implements ActionListener, KeyListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            // button click action
             sendAction();
         }
-    
-        @Override
-        public void keyTyped(KeyEvent e) {
-        }
-    
+
         @Override
         public void keyPressed(KeyEvent e) {
-            // Enter key press action
             if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                 e.consume();
                 sendAction();
             }
         }
-    
-        @Override
-        public void keyReleased(KeyEvent e) {
-        }
-    
+
+        @Override public void keyTyped(KeyEvent e)    {}
+        @Override public void keyReleased(KeyEvent e) {}
+
+        // dispatches send on a background thread, warns if disconnected
         private void sendAction() {
             if (getConnectionStatus()) {
-                SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+                new SwingWorker<Void, Void>() {
                     @Override
                     protected Void doInBackground() {
-                        // Send logic
                         sendMessage();
                         return null;
                     }
-        
+
                     @Override
-                    protected void done() {
-                    }
-                };
-                worker.execute();
-            }
-            else {
+                    protected void done() {}
+                }.execute();
+            } else {
                 warningMessage();
             }
         }
