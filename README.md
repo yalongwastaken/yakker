@@ -4,13 +4,15 @@ A multi-channel chat application written in Java. Clients connect to a multithre
 
 Built as an OOP exercise exploring networked client-server architecture, multithreading, and GUI design.
 
+> **Status: complete.**
+
 ## How It Works
 
 The server manages a set of named channels. Each channel tracks its connected clients and broadcasts messages to everyone in it. Clients connect over TCP, pick a username and channel, and communicate through a Swing interface.
 
 The networking layer runs on a background thread so the GUI stays responsive. Connecting, disconnecting, and sending messages are handled asynchronously — the UI never blocks waiting on the server.
 
-## File Structure
+## Repository Structure
 yakker/
 ├── src/
 │   └── main/java/yakker/
@@ -28,7 +30,7 @@ YakClientFrame      — Swing frame, wires together the GUI and action listeners
 YakClientNetworking — handles TCP connection and background read thread
 YakChannel          — server-side channel, manages connected clients and broadcasts
 
-## Prerequisites
+## Requirements
 
 Install Java via Homebrew if you don't have it:
 
@@ -46,7 +48,7 @@ java -version
 javac -version
 ```
 
-## Running It
+## Building and Running
 
 ### Compile
 
@@ -56,13 +58,13 @@ From the repo root:
 javac -d work src/main/java/yakker/*.java
 ```
 
-### Start the server
+### Start the Server
 
 ```bash
 java -cp work yakker.YakChannel <port>
 ```
 
-### Start a client
+### Start a Client
 
 ```bash
 java -cp work yakker.YakClientGUI
@@ -70,6 +72,8 @@ java -cp work yakker.YakClientGUI
 
 Enter the server address, port, username, and channel name in the GUI to connect.
 
-## Status
+## Author
 
-Completed coursework project (Fall 2023). Kept as an early example of Java networked programming — multithreaded server, TCP client-server architecture, and Swing GUI design.
+**Anthony Yalong**
+- Email: yalong.anthony123@gmail.com
+- GitHub: [@yalongwastaken](https://github.com/yalongwastaken)
